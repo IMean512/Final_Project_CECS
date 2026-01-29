@@ -3,95 +3,120 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>VinPi Water Quality (Remote)</title>
+  <title>Water Quality — Remote Dashboard</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:16px;max-width:820px}
-    h2{margin:0 0 10px 0}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
-    .card{border:1px solid #ddd;border-radius:14px;padding:14px}
-    .k{font-size:12px;opacity:.7;margin-bottom:6px}
-    .v{font-size:30px;font-weight:750;line-height:1.1}
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-    a.btn,button{border:1px solid #111;border-radius:12px;padding:10px 12px;background:#fff;text-decoration:none;color:#111;cursor:pointer}
-    .meta{margin-top:10px;font-size:12px;opacity:.85}
-    .err{color:#b00020;font-weight:600}
-    code{background:#f6f6f6;padding:2px 6px;border-radius:6px}
+    body{font-family:system-ui;margin:16px;max-width:820px}
+    h1{margin:0 0 10px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:12px}
+    .k{font-size:12px;opacity:.7}
+    .v{font-size:28px;font-weight:700}
+    .meta{margin-top:10px;font-size:12px;opacity:.85;white-space:pre-wrap}
+    button{padding:8px 10px;border-radius:10px;border:1px solid #ccc;background:#fff;cursor:pointer}
+    button:hover{background:#f6f6f6}
+    .row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    .ok{color:#0a7b2c;font-weight:600}
+    .bad{color:#b00020;font-weight:600}
   </style>
 </head>
 <body>
-  <h2>VinPi Water Quality — Remote Dashboard</h2>
+  <h1>Water Quality — Remote Dashboard</h1>
 
   <div class="grid">
-    <div class="card"><div class="k">pH</div><div class="v" id="ph">--</div></div>
-    <div class="card"><div class="k">TDS (ppm)</div><div class="v" id="tds">--</div></div>
-    <div class="card"><div class="k">Temp (°C)</div><div class="v" id="temp">--</div></div>
-    <div class="card"><div class="k">Pump</div><div class="v" id="pump">--</div></div>
+    <div class="card">
+      <div class="k">pH</div>
+      <div class="v" id="ph">--</div>
+    </div>
+
+    <div class="card">
+      <div class="k">TDS (ppm)</div>
+      <div class="v" id="tds">--</div>
+    </div>
+
+    <div class="card">
+      <div class="k">Temp (°C)</div>
+      <div class="v" id="temp">--</div>
+    </div>
+
+    <div class="card">
+      <div class="k">Pump</div>
+      <div class="v" id="pump">--</div>
+    </div>
   </div>
 
   <div class="row">
-    <a class="btn" id="openJson" href="#" target="_blank">Open latest.json</a>
-    <button onclick="tick()">Refresh now</button>
+    <button id="openJson">Open latest.json</button>
+    <button id="refresh">Refresh now</button>
   </div>
 
-  <div class="meta" id="meta">Loading...</div>
-  <div class="meta" id="hint"></div>
+  <div class="meta" id="meta">loading...</div>
 
-<script>
-  // ✅ SỬA SẴN theo project của bạn
-  const FIREBASE_HOST = "final-project-cecs-default-rtdb.asia-southeast1.firebasedatabase.app";
-  const deviceId = "team16";
+  <script>
+    // ===== MUST MATCH ESP32 CODE =====
+    const FIREBASE_HOST = "final-project-cecs-default-rtdb.asia-southeast1.firebasedatabase.app";
+    const DEVICE_ID = "team16";
 
+    const urlLatest = `https://${FIREBASE_HOST}/devices/${DEVICE_ID}/latest.json`;
 
-  const latestUrl = `https://${FIREBASE_HOST}/devices/${deviceId}/latest.json`;
-  document.getElementById('openJson').href = latestUrl;
-
-  function setText(id, val) {
-    document.getElementById(id).textContent = val;
-  }
-
-  function fmtNum(x, digits) {
-    if (x === null || x === undefined || Number.isNaN(x)) return "--";
-    const n = Number(x);
-    if (Number.isNaN(n)) return String(x);
-    return n.toFixed(digits);
-  }
-
-  async function tick(){
-    const url = latestUrl + `?ts=${Date.now()}`; // cache-bust
-    try{
-      const r = await fetch(url, {cache:"no-store"});
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-
-      // Update UI
-      setText("ph",   (j && j.ph !== undefined)   ? fmtNum(j.ph, 2)   : "--");
-      setText("tds",  (j && j.tds !== undefined)  ? fmtNum(j.tds, 1)  : "--");
-      setText("temp", (j && j.temp !== undefined) ? fmtNum(j.temp, 2) : "--");
-      setText("pump", (j && j.pump !== undefined) ? (j.pump ? "ON" : "OFF") : "--");
-
-      const tms = (j && j.time_ms !== undefined) ? j.time_ms : "--";
-      const now = new Date().toLocaleString();
-      document.getElementById("meta").innerHTML =
-        `✅ Connected. <code>${latestUrl}</code><br/>` +
-        `time_ms: <b>${tms}</b> | last fetch: <b>${now}</b>`;
-
-      document.getElementById("hint").textContent = "";
-    }catch(e){
-      document.getElementById("meta").innerHTML =
-        `<span class="err">❌ Cannot load data:</span> ${e.message}<br/>` +
-        `Trying: <code>${latestUrl}</code>`;
-
-      document.getElementById("hint").innerHTML =
-        `Check these:<br/>` +
-        `1) Firebase RTDB Rules allow read (test mode): <code>".read": true</code><br/>` +
-        `2) ESP32 is actually writing to <code>/devices/${deviceId}/latest</code><br/>` +
-        `3) Open <b>latest.json</b> button above — if it shows "Permission denied", fix Rules.`;
+    function fmtNum(x, digits) {
+      if (x === null || x === undefined) return "--";
+      const n = Number(x);
+      if (!Number.isFinite(n)) return "--";
+      return n.toFixed(digits);
     }
-  }
 
-  tick();
-  setInterval(tick, 1000);
-</script>
+    function fmtPump(x) {
+      // ESP gửi pump = 1/0
+      if (x === 1 || x === "1" || x === true) return "ON";
+      if (x === 0 || x === "0" || x === false) return "OFF";
+      return "--";
+    }
+
+    async function tick() {
+      const tFetch = new Date();
+      try {
+        const res = await fetch(urlLatest + `?ts=${Date.now()}`, { cache: "no-store" });
+        const text = await res.text();
+
+        if (!res.ok) {
+          document.getElementById("meta").innerText =
+            `❌ HTTP ${res.status}\nURL: ${urlLatest}\n${text}`;
+          return;
+        }
+
+        const j = text ? JSON.parse(text) : null;
+
+        if (!j) {
+          document.getElementById("meta").innerText =
+            `⚠️ Data is null.\nURL: ${urlLatest}\n=> ESP32 chưa push hoặc Rules đang chặn write.`;
+          return;
+        }
+
+        document.getElementById("ph").innerText   = fmtNum(j.ph, 2);
+        document.getElementById("tds").innerText  = fmtNum(j.tds, 1);
+        document.getElementById("temp").innerText = fmtNum(j.temp, 2);
+        document.getElementById("pump").innerText = fmtPump(j.pump);
+
+        const okBadge = `✅ Connected`;
+        const tms = (j.time_ms !== undefined) ? j.time_ms : "(no time_ms)";
+        const reason = (j.reason !== undefined) ? j.reason : "(no reason)";
+
+        document.getElementById("meta").innerText =
+          `${okBadge}\nURL: ${urlLatest}\n` +
+          `time_ms: ${tms} | reason: ${reason}\n` +
+          `last fetch: ${tFetch.toLocaleString()}`;
+
+      } catch (e) {
+        document.getElementById("meta").innerText =
+          `❌ error loading data\nURL: ${urlLatest}\n` + e;
+      }
+    }
+
+    document.getElementById("openJson").onclick = () => window.open(urlLatest, "_blank");
+    document.getElementById("refresh").onclick = tick;
+
+    tick();
+    setInterval(tick, 1000);
+  </script>
 </body>
 </html>
-
